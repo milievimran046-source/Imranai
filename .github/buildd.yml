@@ -1,0 +1,162 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Create SwiftUI App
+        run: |
+          # Создаём структуру проекта
+          mkdir -p IMRANApp
+          cd IMRANApp
+          
+          # Создаём Info.plist
+          cat > Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleDevelopmentRegion</key>
+            <string>en</string>
+            <key>CFBundleExecutable</key>
+            <string>$(EXECUTABLE_NAME)</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.imran.ai</string>
+            <key>CFBundleInfoDictionaryVersion</key>
+            <string>6.0</string>
+            <key>CFBundleName</key>
+            <string>IMRAN.Ai</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
+            <key>LSRequiresIPhoneOS</key>
+            <true/>
+            <key>UIApplicationSceneManifest</key>
+            <dict>
+              <key>UIApplicationSupportsMultipleScenes</key>
+              <false/>
+            </dict>
+            <key>UILaunchScreen</key>
+            <dict/>
+            <key>UIRequiredDeviceCapabilities</key>
+            <array>
+              <string>armv7</string>
+            </array>
+            <key>UISupportedInterfaceOrientations</key>
+            <array>
+              <string>UIInterfaceOrientationPortrait</string>
+            </array>
+            <key>NSPhotoLibraryAddUsageDescription</key>
+            <string>Save generated content</string>
+          </dict>
+          </plist>
+          EOF
+          
+          # Создаём основной файл приложения
+          cat > IMRANApp.swift << 'EOF'
+          import SwiftUI
+          
+          @main
+          struct IMRANApp: App {
+              var body: some Scene {
+                  WindowGroup {
+                      ContentView()
+                  }
+              }
+          }
+          
+          struct ContentView: View {
+              @State private var prompt = ""
+              @State private var response = ""
+              @State private var isLoading = false
+              
+              var body: some View {
+                  NavigationStack {
+                      VStack(spacing: 20) {
+                          TextField("Введите запрос...", text: $prompt)
+                              .textFieldStyle(RoundedBorderTextFieldStyle())
+                              .padding(.horizontal)
+                          
+                          Button(action: generate) {
+                              HStack {
+                                  if isLoading {
+                                      ProgressView()
+                                  }
+                                  Text(isLoading ? "Генерация..." : "Сгенерировать")
+                              }
+                              .frame(maxWidth: .infinity)
+                              .padding()
+                              .background(prompt.isEmpty ? Color.gray : Color.blue)
+                              .foregroundColor(.white)
+                              .cornerRadius(10)
+                          }
+                          .disabled(prompt.isEmpty || isLoading)
+                          .padding(.horizontal)
+                          
+                          if !response.isEmpty {
+                              ScrollView {
+                                  Text(response)
+                                      .padding()
+                                      .frame(maxWidth: .infinity, alignment: .leading)
+                                      .background(Color(.systemGray6))
+                                      .cornerRadius(10)
+                              }
+                              .padding(.horizontal)
+                          }
+                          
+                          Spacer()
+                      }
+                      .padding(.top)
+                      .navigationTitle("IMRAN.Ai")
+                  }
+              }
+              
+              func generate() {
+                  isLoading = true
+                  
+                  // Имитация генерации
+                  DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                      response = "IMRAN.Ai ответ:\n\nЗапрос: \(prompt)\n\nГенерация выполнена. Без водяных знаков, без ограничений."
+                      isLoading = false
+                  }
+              }
+          }
+          EOF
+          
+          cd ..
+      
+      - name: Build IPA
+        run: |
+          cd IMRANApp
+          
+          # Компилируем
+          swiftc -parse-as-library -target arm64-apple-ios13.0 IMRANApp.swift -o IMRANApp
+          
+          # Создаём структуру .app
+          mkdir -p Payload/IMRANApp.app
+          cp IMRANApp Payload/IMRANApp.app/IMRANApp
+          cp Info.plist Payload/IMRANApp.app/
+          
+          # Создаём IPA
+          zip -r IMRAN.ipa Payload
+          
+          ls -la IMRAN.ipa
+          pwd
+      
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMRAN-Ai
+          path: IMRANApp/IMRAN.ipa
